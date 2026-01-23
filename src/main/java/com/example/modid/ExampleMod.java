@@ -1,7 +1,11 @@
 package com.example.modid;
 
+import com.cleanroommc.kirino.KirinoCore;
+import com.cleanroommc.kirino.engine.world.event.ModuleInstallerRegistrationEvent;
+import com.cleanroommc.kirino.engine.world.type.Headless;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +22,12 @@ public class ExampleMod {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER.info("Hello From {}!", Reference.MOD_NAME);
+
+        KirinoCore.KIRINO_EVENT_BUS.register(this);
     }
 
+    @SubscribeEvent
+    public void moduleInstallerRegister(ModuleInstallerRegistrationEvent event) {
+        event.register(Headless.class, new TestModuleInstaller());
+    }
 }
