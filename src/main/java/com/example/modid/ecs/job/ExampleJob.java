@@ -2,23 +2,23 @@ package com.example.modid.ecs.job;
 
 import com.cleanroommc.kirino.ecs.entity.EntityManager;
 import com.cleanroommc.kirino.ecs.entity.EntityQuery;
-import com.cleanroommc.kirino.ecs.job.IParallelJob;
+import com.cleanroommc.kirino.ecs.job.ParallelJob;
 import com.cleanroommc.kirino.ecs.job.JobDataQuery;
-import com.cleanroommc.kirino.ecs.storage.IPrimitiveArray;
+import com.cleanroommc.kirino.ecs.storage.PrimitiveArray;
 import com.example.modid.ExampleMod;
 import com.example.modid.ecs.component.Transform;
 import org.jspecify.annotations.NonNull;
 
-public class ExampleJob implements IParallelJob {
+public class ExampleJob implements ParallelJob {
 
     @JobDataQuery(componentClass = Transform.class, fieldAccessChain = {"position", "pos", "x"})
-    IPrimitiveArray posXArr;
+    PrimitiveArray posXArr;
 
     @JobDataQuery(componentClass = Transform.class, fieldAccessChain = {"position", "pos", "y"})
-    IPrimitiveArray posYArr;
+    PrimitiveArray posYArr;
 
     @JobDataQuery(componentClass = Transform.class, fieldAccessChain = {"position", "pos", "z"})
-    IPrimitiveArray posZArr;
+    PrimitiveArray posZArr;
 
     @Override
     public void execute(@NonNull EntityManager entityManager, int index, int entityID, int threadOrdinal) {

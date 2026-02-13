@@ -2,7 +2,7 @@ package com.example.modid.ecs;
 
 import com.cleanroommc.kirino.ecs.entity.EntityManager;
 import com.cleanroommc.kirino.ecs.job.JobScheduler;
-import com.cleanroommc.kirino.ecs.system.exegraph.ISystemExeFlowGraph;
+import com.cleanroommc.kirino.ecs.system.exegraph.SystemExeFlowGraph;
 import com.cleanroommc.kirino.ecs.system.exegraph.SingleFlow;
 import com.cleanroommc.kirino.ecs.world.CleanWorld;
 import com.example.modid.ExampleMod;
@@ -24,7 +24,7 @@ public class ExampleWorld extends CleanWorld {
             .newBuilder(this, ExampleSystem.class)
             .setStartNodeCallback(() -> ExampleMod.LOGGER.info("Before ExampleSystem execution."))
             .setEndNodeCallback(() -> ExampleMod.LOGGER.info("After ExampleSystem execution."))
-            .addTransition(new ExampleSystem(), ISystemExeFlowGraph.START_NODE, ISystemExeFlowGraph.END_NODE)
+            .addTransition(new ExampleSystem(), SystemExeFlowGraph.START_NODE, SystemExeFlowGraph.END_NODE)
             .build();
 
     @Override
