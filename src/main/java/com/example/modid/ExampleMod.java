@@ -1,15 +1,11 @@
 package com.example.modid;
 
 import com.cleanroommc.kirino.KirinoCommonCore;
-import com.cleanroommc.kirino.ecs.component.scan.event.ComponentScanningEvent;
-import com.cleanroommc.kirino.ecs.component.scan.event.StructScanningEvent;
-import com.cleanroommc.kirino.ecs.job.event.JobRegistrationEvent;
-import com.cleanroommc.kirino.engine.world.event.ModuleInstallerRegistrationEvent;
-import com.cleanroommc.kirino.engine.world.type.Headless;
-import com.example.modid.ecs.job.ExampleJob;
+import com.example.modid.listener.ECSEventListeners;
+import com.example.modid.listener.EngineEventListeners;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,26 +23,18 @@ public class ExampleMod {
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER.info("Hello From {}!", Reference.MOD_NAME);
 
-        KirinoCommonCore.KIRINO_EVENT_BUS.register(this);
-    }
+        // kirino engine can run on server but doesn't provide any server side lifecycle yet.
+        // kirino ecs is mostly used for client side objects at the moment.
+        //
+        // Note:
+        //   You're still able to tick kirino ecs on server by listening to server events.
+        //   That is, you're providing your own server lifecycle.
+        if (FMLCommonHandler.instance().getSide().isClient()) {
+            // register ecs event listeners
+            KirinoCommonCore.KIRINO_EVENT_BUS.register(new ECSEventListeners());
+        }
 
-    @SubscribeEvent
-    public void moduleInstallerRegister(ModuleInstallerRegistrationEvent event) {
-        event.register(Headless.class, new ExampleModuleInstaller());
-    }
-
-    @SubscribeEvent
-    public void structScan(StructScanningEvent event) {
-        event.register("com.example.modid.ecs.struct");
-    }
-
-    @SubscribeEvent
-    public void componentScan(ComponentScanningEvent event) {
-        event.register("com.example.modid.ecs.component");
-    }
-
-    @SubscribeEvent
-    public void jobRegister(JobRegistrationEvent event) {
-        event.register(ExampleJob.class);
+        // register engine event listeners
+        KirinoCommonCore.KIRINO_EVENT_BUS.register(new EngineEventListeners());
     }
 }
