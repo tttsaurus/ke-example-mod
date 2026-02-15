@@ -34,6 +34,9 @@ public class ExampleMod {
             KirinoCommonCore.KIRINO_EVENT_BUS.register(new ECSEventListeners());
         }
 
+        // Note:
+        //   Lifecycle of module installers will be ignored on server.
+        //
         // register engine event listeners
         KirinoCommonCore.KIRINO_EVENT_BUS.register(new EngineEventListeners());
     }

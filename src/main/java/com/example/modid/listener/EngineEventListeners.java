@@ -9,6 +9,8 @@ public class EngineEventListeners {
 
     @SubscribeEvent
     public void moduleInstallerRegister(ModuleInstallerRegistrationEvent event) {
+        // must only register headless installers for now
+        // since rendering part of kirino is disabled at the moment
         event.register(Headless.class, new ExampleModuleInstaller());
     }
 }

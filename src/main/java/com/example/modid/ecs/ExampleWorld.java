@@ -39,6 +39,7 @@ public class ExampleWorld extends CleanWorld {
             Transform transform2 = new Transform();
             transform2.position.pos = new Vector3f(3, 3, 3);
 
+            // commands are buffered and consumed later at super.update()
             entityManager.createEntity(transform0);
             entityManager.createEntity(transform1);
             entityManager.createEntity(transform2);
