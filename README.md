@@ -1,9 +1,19 @@
-# Kirino-Engine Example Mod
+# CleanroomModTemplate
 
-![Platform](https://img.shields.io/badge/Platform-Minecraft%201.12.2-brightgreen.svg)
+A mod development template for Cleanroom. Requires Cleanroom 0.7.0 or above. Uses [CleanroomGradle](https://github.com/CleanroomMC/CleanroomGradle) and [Conventions](https://github.com/CleanroomMC/Conventions).
 
-This is an example mod for [Kirino-Engine](https://github.com/CleanroomMC/Kirino-Engine) created using [CleanroomModTemplate](https://github.com/CleanroomMC/CleanroomModTemplate).
+## Getting Started
 
-Currently, this repo demonstrates:
-- Engine entrypoint usage
-- ECS usage
+1. Set `root_package`, `mod_id` and `mod_name` in `gradle.properties`, and move the sources to match.
+2. Set `conventions.license`, then run `./gradlew extractConventions applyLicenseHeader`.
+3. Run `./gradlew runClient`.
+
+Every other option is documented next to its property in `gradle.properties`.
+
+## Versioning
+
+The version is computed from git tags. Tag `1.0.0` on `main` to release it, `./gradlew -q printVersion` prints the current value.
+
+## Tokens
+
+`@{NAME}` markers in classes and resources are replaced at build time. `tokens.properties` declares them.
