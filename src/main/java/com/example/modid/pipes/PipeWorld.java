@@ -44,6 +44,7 @@ public final class PipeWorld {
     private PipeWorld(boolean[] occupied) {
         this.occupied = Preconditions.checkNotNull(occupied);
         Preconditions.checkArgument(occupied.length == SIZE * SIZE * SIZE);
+
         ImmutableList.Builder<Cell> result = ImmutableList.builder();
         for (int y = 0; y < SIZE; y++) {
             for (int z = 0; z < SIZE; z++) {
@@ -77,6 +78,7 @@ public final class PipeWorld {
 
     public static PipeWorld generate(RandomGenerator random) {
         Preconditions.checkNotNull(random);
+
         boolean[] occupied = FRAME.clone();
         int[] topologies = new int[CELLS_PER_AXIS * CELLS_PER_AXIS * CELLS_PER_AXIS];
         for (int i = 0; i < topologies.length; i++) {

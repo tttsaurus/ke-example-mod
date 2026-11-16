@@ -6,6 +6,7 @@ import com.cleanroommc.kirino.gl.shader.ShaderProgram;
 import com.cleanroommc.kirino.gl.vao.VAO;
 import com.example.modid.pipes.instanced.InstancedPipeRenderer;
 import com.example.modid.render.BlockMaterial;
+import com.example.modid.benchmark.Benchmark;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiDownloadTerrain;
@@ -149,7 +150,9 @@ public final class PipeRenderEvents {
             REGENERATION_TIMER.reset();
             REGENERATION_TIMER.start();
             if (renderer != null) {
-                renderer.update(scene);
+                try (Benchmark.Sample ignored = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.UPDATE)) {
+                    renderer.update(scene);
+                }
             }
         }
 
@@ -176,7 +179,10 @@ public final class PipeRenderEvents {
             GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
             minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
-            renderer.render(frame);
+            try (Benchmark.Sample gpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_GPU);
+                 Benchmark.Sample cpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_CPU)) {
+                renderer.render(frame);
+            }
         } finally {
             ShaderProgram.useRaw(0);
             VAO.bind(0);

@@ -6,13 +6,11 @@ import com.example.modid.pipes.PipeScene;
 import com.google.common.base.Preconditions;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
-import org.jspecify.annotations.Nullable;
 
 public final class InstancedPipeRenderer implements PipeRenderer {
 
     private final PipeShader shader;
     private final PipeMesh mesh;
-    private @Nullable PipeScene pendingScene;
     private boolean closed;
 
     public InstancedPipeRenderer(PipeScene scene) {
@@ -25,19 +23,15 @@ public final class InstancedPipeRenderer implements PipeRenderer {
     @Override
     public void update(PipeScene scene) {
         Preconditions.checkState(!closed, "Renderer is closed.");
+        Preconditions.checkNotNull(scene);
 
-        pendingScene = Preconditions.checkNotNull(scene);
+        mesh.update(scene);
     }
 
     @Override
     public void render(PipeFrame frame) {
         Preconditions.checkState(!closed, "Renderer is closed.");
         Preconditions.checkNotNull(frame);
-
-        if (pendingScene != null) {
-            mesh.update(pendingScene);
-            pendingScene = null;
-        }
 
         GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
         GlStateManager.bindTexture(frame.lightmap.getGlTextureId());
@@ -54,7 +48,6 @@ public final class InstancedPipeRenderer implements PipeRenderer {
         }
 
         closed = true;
-        pendingScene = null;
         shader.close();
         mesh.close();
     }

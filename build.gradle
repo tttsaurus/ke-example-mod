@@ -63,6 +63,12 @@ dependencies {
     implementation cleanroom.userdev(cleanroom_version) {
         accessTransformers.from(accessTransformerNames.collect { "src/main/resources/META-INF/$it" })
     }
+    implementation 'org.lwjgl:lwjgl-remotery'
+    runtimeOnly 'org.lwjgl:lwjgl-remotery::natives-linux'
+    runtimeOnly 'org.lwjgl:lwjgl-remotery::natives-linux-arm64'
+    runtimeOnly 'org.lwjgl:lwjgl-remotery::natives-windows'
+    runtimeOnly 'org.lwjgl:lwjgl-remotery::natives-macos'
+    runtimeOnly 'org.lwjgl:lwjgl-remotery::natives-macos-arm64'
     if (dependOnHei) {
         implementation 'mezz:jei:4.36.1:dev'
     } else {

@@ -124,3 +124,6 @@ $RECYCLE.BIN/
 # <<< cleanroom-conventions
 
 runs
+/benchmarks/
+__pycache__/
+/.venv/

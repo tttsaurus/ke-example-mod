@@ -59,8 +59,10 @@ public final class BlockMaterial {
             }
 
             EnumFacing face = Preconditions.checkNotNull(candidateFace, "Expected axis-aligned full-block faces.");
+
             int index = face.getIndex();
             Preconditions.checkArgument((faces & (1 << index)) == 0, "Duplicate model face: %s", face);
+
             faces |= 1 << index;
             int corners = 0;
             for (int vertex = 0; vertex < 4; vertex++) {
