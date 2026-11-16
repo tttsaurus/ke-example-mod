@@ -16,6 +16,8 @@ import java.nio.IntBuffer;
 
 final class GpuDrivenPipeShader implements AutoCloseable {
 
+    static final int[][] TOPOLOGY_FACES = buildTopologyFaces();
+
     private final Shader vertexShader;
     private final Shader fragmentShader;
     private final ShaderProgram program;
@@ -33,6 +35,11 @@ final class GpuDrivenPipeShader implements AutoCloseable {
         program.uniform1i("atlas", 0);
         program.uniform1i("lightmap", 1);
         program.uniform1i("blocks", blockTextureUnit);
+        for (int topology = 0; topology < TOPOLOGY_FACES.length; topology++) {
+            int[] faces = TOPOLOGY_FACES[topology];
+            program.uniform4ui("topologyFaces[" + topology * 2 + "]", faces[0], faces[1], faces[2], faces[3]);
+            program.uniform4ui("topologyFaces[" + (topology * 2 + 1) + "]", faces[4], faces[5], faces[6], faces[7]);
+        }
         for (EnumFacing face : EnumFacing.VALUES) {
             program.uniform1f("faceShade[" + face.getIndex() + "]", LightUtil.diffuseLight(face));
         }
@@ -53,13 +60,48 @@ final class GpuDrivenPipeShader implements AutoCloseable {
         }
     }
 
-    void update(IntBuffer vertexEnds, IntBuffer blockOffsets) {
-        Preconditions.checkState(!closed, "Shader is closed.");
-        Preconditions.checkNotNull(vertexEnds);
-        Preconditions.checkNotNull(blockOffsets);
-        Preconditions.checkArgument(vertexEnds.remaining() == PipeWorld.TOPOLOGY_COUNT && blockOffsets.remaining() == PipeWorld.TOPOLOGY_COUNT);
+    private static int[][] buildTopologyFaces() {
+        int[][] topologies = new int[PipeWorld.TOPOLOGY_COUNT][8];
 
-        program.uniform1iv("vertexEnds", vertexEnds);
+        for (int topology = 0; topology < topologies.length; topology++) {
+            int[] faces = topologies[topology];
+            int quad = 0;
+            for (EnumFacing face : EnumFacing.VALUES) {
+                if ((topology & 1 << face.getIndex()) == 0) {
+                    faces[quad / 4] |= face.getIndex() << (quad % 4 * 8);
+                    quad++;
+                }
+            }
+            for (EnumFacing direction : EnumFacing.VALUES) {
+                if ((topology & 1 << direction.getIndex()) == 0) {
+                    continue;
+                }
+
+                for (EnumFacing face : EnumFacing.VALUES) {
+                    if (face.getAxis() == direction.getAxis()) {
+                        continue;
+                    }
+
+                    int descriptor = face.getIndex() | (direction.getIndex() + 1) << 3;
+                    faces[quad / 4] |= descriptor << (quad % 4 * 8);
+                    quad++;
+                }
+            }
+            Preconditions.checkState(quad == 6 + 3 * Integer.bitCount(topology),
+                    "Unexpected topology face count.");
+        }
+
+        return topologies;
+    }
+
+    void update(IntBuffer quadEnds, IntBuffer blockOffsets) {
+        Preconditions.checkState(!closed, "Shader is closed.");
+        Preconditions.checkNotNull(quadEnds);
+        Preconditions.checkNotNull(blockOffsets);
+        Preconditions.checkArgument(quadEnds.remaining() == GpuDrivenPipeRenderer.CONNECTION_GROUP_COUNT
+                && blockOffsets.remaining() == GpuDrivenPipeRenderer.CONNECTION_GROUP_COUNT);
+
+        program.uniform1iv("quadEnds", quadEnds);
         program.uniform1iv("blockOffsets", blockOffsets);
     }
 

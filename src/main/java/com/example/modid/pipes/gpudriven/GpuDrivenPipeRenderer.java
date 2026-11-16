@@ -2,6 +2,7 @@ package com.example.modid.pipes.gpudriven;
 
 import com.cleanroommc.kirino.gl.buffer.GLBuffer;
 import com.cleanroommc.kirino.gl.buffer.meta.BufferUploadHint;
+import com.cleanroommc.kirino.gl.buffer.view.EBOView;
 import com.cleanroommc.kirino.gl.buffer.view.TBOView;
 import com.cleanroommc.kirino.gl.buffer.view.VBOView;
 import com.cleanroommc.kirino.gl.texture.GLTexture;
@@ -18,6 +19,8 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
+import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -28,10 +31,15 @@ import java.nio.IntBuffer;
 
 public final class GpuDrivenPipeRenderer implements PipeRenderer {
 
+    static final int CONNECTION_GROUP_COUNT = 7;
+
     private static final int BLOCK_STRIDE = 2 * Integer.BYTES;
     private static final int BLOCK_TEXTURE_UNIT = 2;
+    private static final int QUADS_PER_BATCH = 64;
+    private static final int INDICES_PER_BATCH = QUADS_PER_BATCH * 5;
 
     private final BlockMaterial material;
+    private final GLBuffer indexBuffer;
     private final GLBuffer blockBuffer;
     private final TBOView blocks;
     private final GLTexture blockTexture;
@@ -39,7 +47,7 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
     private final VAO vao;
     private final GpuDrivenPipeShader shader;
     private int blockCapacity = BLOCK_STRIDE;
-    private int vertexCount;
+    private int batchCount;
     private boolean closed;
 
     public GpuDrivenPipeRenderer(PipeScene scene) {
@@ -47,11 +55,26 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
 
         material = scene.material;
         shader = new GpuDrivenPipeShader(material, BLOCK_TEXTURE_UNIT);
+        indexBuffer = new GLBuffer(true);
+        EBOView indices = new EBOView(indexBuffer, true);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            ByteBuffer data = stack.malloc(INDICES_PER_BATCH * Short.BYTES);
+            for (int quad = 0; quad < QUADS_PER_BATCH; quad++) {
+                int firstVertex = quad * 4;
+                data.putShort((short) (firstVertex + 1));
+                data.putShort((short) (firstVertex + 2));
+                data.putShort((short) firstVertex);
+                data.putShort((short) (firstVertex + 3));
+                data.putShort((short) 0xFFFF);
+            }
+            indices.uploadDirectly(data.flip(), BufferUploadHint.STATIC_DRAW);
+        }
+
         blockBuffer = new GLBuffer(true);
         blocks = new TBOView(blockBuffer, true);
         blockTexture = GLTexture.newDsaTexBuffer();
         blockTextureAccessor = new TextureBufferAccessor(true, blockTexture);
-        vao = new VAO(true, new AttributeLayout(), null, (VBOView[]) null);
+        vao = new VAO(true, new AttributeLayout(), indices, (VBOView[]) null);
 
         update(scene);
         blockTextureAccessor.texBuffer(GL30.GL_RG32UI, blockBuffer.bufferID);
@@ -63,30 +86,30 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         Preconditions.checkNotNull(scene);
         Preconditions.checkArgument(scene.material == material, "Material changes require a new renderer.");
 
-        int[] counts = new int[PipeWorld.TOPOLOGY_COUNT];
-        int[] cursors = new int[PipeWorld.TOPOLOGY_COUNT];
+        int[] counts = new int[CONNECTION_GROUP_COUNT];
+        int[] cursors = new int[CONNECTION_GROUP_COUNT];
         for (PipeScene.Block block : scene.blocks) {
-            counts[block.cell().topology()]++;
+            counts[Integer.bitCount(block.cell().topology())]++;
         }
 
         int blockBytes = scene.blocks.size() * BLOCK_STRIDE;
         ByteBuffer data = MemoryUtil.memAlloc(blockBytes).order(ByteOrder.nativeOrder());
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer vertexEnds = stack.mallocInt(PipeWorld.TOPOLOGY_COUNT);
-            IntBuffer blockOffsets = stack.mallocInt(PipeWorld.TOPOLOGY_COUNT);
+            IntBuffer quadEnds = stack.mallocInt(CONNECTION_GROUP_COUNT);
+            IntBuffer blockOffsets = stack.mallocInt(CONNECTION_GROUP_COUNT);
             int firstBlock = 0;
-            int vertices = 0;
-            for (int topology = 0; topology < counts.length; topology++) {
-                cursors[topology] = firstBlock;
+            int quads = 0;
+            for (int connections = 0; connections < counts.length; connections++) {
+                cursors[connections] = firstBlock;
                 blockOffsets.put(firstBlock);
-                firstBlock += counts[topology];
-                vertices += counts[topology] * (6 + 3 * Integer.bitCount(topology)) * 6;
-                vertexEnds.put(vertices);
+                firstBlock += counts[connections];
+                quads += counts[connections] * (6 + 3 * connections);
+                quadEnds.put(quads);
             }
 
             for (PipeScene.Block block : scene.blocks) {
                 PipeWorld.Cell cell = block.cell();
-                int offset = cursors[cell.topology()]++ * BLOCK_STRIDE;
+                int offset = cursors[Integer.bitCount(cell.topology())]++ * BLOCK_STRIDE;
                 data.putInt(offset, cell.x() | cell.y() << 8 | cell.z() << 16 | cell.topology() << 24);
                 data.putInt(offset + Integer.BYTES, (block.lightmap() & 0xFF)
                         | (block.lightmap() >>> 16 & 0xFF) << 8
@@ -100,8 +123,8 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
             if (blockBytes != 0) {
                 blocks.uploadBySubData(0, data);
             }
-            shader.update(vertexEnds.flip(), blockOffsets.flip());
-            vertexCount = vertices;
+            shader.update(quadEnds.flip(), blockOffsets.flip());
+            batchCount = (quads + QUADS_PER_BATCH - 1) / QUADS_PER_BATCH;
         } finally {
             MemoryUtil.memFree(data);
         }
@@ -112,7 +135,7 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         Preconditions.checkState(!closed, "Renderer is closed.");
         Preconditions.checkNotNull(frame);
 
-        if (vertexCount == 0) {
+        if (batchCount == 0) {
             return;
         }
 
@@ -123,7 +146,9 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         blockTextureAccessor.bindUnit(BLOCK_TEXTURE_UNIT);
         shader.bind(frame);
         vao.bind();
-        GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, vertexCount);
+        GL11.glEnable(GL43.GL_PRIMITIVE_RESTART_FIXED_INDEX);
+        GL31.glDrawElementsInstanced(GL11.GL_TRIANGLE_STRIP, INDICES_PER_BATCH, GL11.GL_UNSIGNED_SHORT, 0L, batchCount);
+        GL11.glDisable(GL43.GL_PRIMITIVE_RESTART_FIXED_INDEX);
         GL45.glBindTextureUnit(BLOCK_TEXTURE_UNIT, 0);
     }
 
@@ -136,6 +161,7 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         closed = true;
         shader.close();
         vao.disposeManually();
+        indexBuffer.disposeManually();
         blockTexture.disposeManually();
         blockBuffer.disposeManually();
     }
