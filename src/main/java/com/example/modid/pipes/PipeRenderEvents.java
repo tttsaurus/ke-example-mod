@@ -4,6 +4,7 @@ import com.cleanroommc.kirino.engine.ShutdownManager;
 import com.cleanroommc.kirino.gl.buffer.view.VBOView;
 import com.cleanroommc.kirino.gl.shader.ShaderProgram;
 import com.cleanroommc.kirino.gl.vao.VAO;
+import com.example.modid.pipes.gpudriven.GpuDrivenPipeRenderer;
 import com.example.modid.pipes.instanced.InstancedPipeRenderer;
 import com.example.modid.render.BlockMaterial;
 import com.example.modid.benchmark.Benchmark;
@@ -164,50 +165,48 @@ public final class PipeRenderEvents {
             return;
         }
 
-        try {
-            if (renderer == null) {
-                renderer = new InstancedPipeRenderer(scene);
-            }
-
-            GlStateManager.enableDepth();
-            GlStateManager.depthFunc(GL11.GL_LEQUAL);
-            GlStateManager.depthMask(true);
-            GlStateManager.disableBlend();
-            GlStateManager.enableCull();
-            GlStateManager.cullFace(GlStateManager.CullFace.BACK);
-            GlStateManager.disableAlpha();
-            GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
-            minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-
-            try (Benchmark.Sample gpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_GPU);
-                 Benchmark.Sample cpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_CPU)) {
-                renderer.render(frame);
-            }
-        } finally {
-            ShaderProgram.useRaw(0);
-            VAO.bind(0);
-            VBOView.bindRaw(0);
-            GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
-            GlStateManager.disableTexture2D();
-            GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
-            GlStateManager.enableTexture2D();
-            minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-            GlStateManager.enableDepth();
-            GlStateManager.depthFunc(GL11.GL_LEQUAL);
-            GlStateManager.depthMask(true);
-            GlStateManager.enableCull();
-            GlStateManager.cullFace(GlStateManager.CullFace.BACK);
-            GlStateManager.disableBlend();
-            GlStateManager.tryBlendFuncSeparate(
-                    GlStateManager.SourceFactor.SRC_ALPHA,
-                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
-                    GlStateManager.SourceFactor.ONE,
-                    GlStateManager.DestFactor.ZERO);
-            GlStateManager.enableAlpha();
-            GlStateManager.alphaFunc(GL11.GL_GREATER, 0.1f);
-            GlStateManager.disableFog();
-            GlStateManager.color(1, 1, 1, 1);
+        if (renderer == null) {
+            renderer = new InstancedPipeRenderer(scene);
         }
+
+        GlStateManager.enableDepth();
+        GlStateManager.depthFunc(GL11.GL_LEQUAL);
+        GlStateManager.depthMask(true);
+        GlStateManager.disableBlend();
+        GlStateManager.enableCull();
+        GlStateManager.cullFace(GlStateManager.CullFace.BACK);
+        GlStateManager.disableAlpha();
+        GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+        minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+
+        try (Benchmark.Sample gpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_GPU);
+             Benchmark.Sample cpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_CPU)) {
+            renderer.render(frame);
+        }
+
+        ShaderProgram.useRaw(0);
+        VAO.bind(0);
+        VBOView.bindRaw(0);
+        GlStateManager.setActiveTexture(OpenGlHelper.lightmapTexUnit);
+        GlStateManager.disableTexture2D();
+        GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+        GlStateManager.enableTexture2D();
+        minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+        GlStateManager.enableDepth();
+        GlStateManager.depthFunc(GL11.GL_LEQUAL);
+        GlStateManager.depthMask(true);
+        GlStateManager.enableCull();
+        GlStateManager.cullFace(GlStateManager.CullFace.BACK);
+        GlStateManager.disableBlend();
+        GlStateManager.tryBlendFuncSeparate(
+                GlStateManager.SourceFactor.SRC_ALPHA,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
+                GlStateManager.SourceFactor.ONE,
+                GlStateManager.DestFactor.ZERO);
+        GlStateManager.enableAlpha();
+        GlStateManager.alphaFunc(GL11.GL_GREATER, 0.1f);
+        GlStateManager.disableFog();
+        GlStateManager.color(1, 1, 1, 1);
     }
 
     private static void close() {

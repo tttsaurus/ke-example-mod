@@ -15,14 +15,14 @@ import com.google.common.base.Preconditions;
 import net.minecraft.util.EnumFacing;
 import net.minecraftforge.client.model.pipeline.LightUtil;
 
-final class PipeShader implements AutoCloseable {
+final class InstancedPipeShader implements AutoCloseable {
 
     private final Shader vertexShader;
     private final Shader fragmentShader;
     private final ShaderProgram program;
     private boolean closed;
 
-    PipeShader() {
+    InstancedPipeShader() {
         vertexShader = ICS.instance().shader().makeShader("@{MOD_ID}", "shaders/pipes/instanced.vert");
         fragmentShader = ICS.instance().shader().makeShader("@{MOD_ID}", "shaders/pipes/instanced.frag");
 

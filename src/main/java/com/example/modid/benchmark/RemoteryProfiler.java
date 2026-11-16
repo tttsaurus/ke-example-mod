@@ -34,7 +34,7 @@ final class RemoteryProfiler implements AutoCloseable {
             hash = MemoryUtil.memCallocInt(1);
             try {
                 this.name = MemoryUtil.memUTF8(name);
-            } catch (RuntimeException | Error exception) {
+            } catch (Throwable exception) {
                 MemoryUtil.memFree(hash);
                 throw exception;
             }
@@ -138,7 +138,7 @@ final class RemoteryProfiler implements AutoCloseable {
 
                 instance = pointer.get(0);
             }
-        } catch (RuntimeException | Error exception) {
+        } catch (Throwable exception) {
             settings.sampletree_handler(null);
             sampleTreeHandler.free();
             throw exception;

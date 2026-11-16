@@ -22,7 +22,7 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-final class PipeMesh implements AutoCloseable {
+final class InstancedPipeMesh implements AutoCloseable {
 
     private record Batch(int indexCount, long indexOffset, int instanceCount, int firstInstance) {
     }
@@ -38,10 +38,10 @@ final class PipeMesh implements AutoCloseable {
     private final VAO vao;
     private final Batch[] batches;
     private final BlockMaterial material;
-    private int instanceCapacity;
+    private int instanceCapacity = INSTANCE_STRIDE;
     private boolean closed;
 
-    PipeMesh(PipeScene scene) {
+    InstancedPipeMesh(PipeScene scene) {
         Preconditions.checkNotNull(scene);
 
         material = scene.material;

@@ -9,15 +9,15 @@ import net.minecraft.client.renderer.OpenGlHelper;
 
 public final class InstancedPipeRenderer implements PipeRenderer {
 
-    private final PipeShader shader;
-    private final PipeMesh mesh;
+    private final InstancedPipeShader shader;
+    private final InstancedPipeMesh mesh;
     private boolean closed;
 
     public InstancedPipeRenderer(PipeScene scene) {
         Preconditions.checkNotNull(scene);
 
-        shader = new PipeShader();
-        mesh = new PipeMesh(scene);
+        shader = new InstancedPipeShader();
+        mesh = new InstancedPipeMesh(scene);
     }
 
     @Override

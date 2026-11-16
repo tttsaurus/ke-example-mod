@@ -94,7 +94,7 @@ final class BenchmarkSession implements AutoCloseable {
                     gpuTimers.put(metrics.get(i), profiler.registerGpu(metrics.get(i).id(), i));
                 }
             }
-        } catch (RuntimeException | Error exception) {
+        } catch (Throwable exception) {
             profiler.close();
             throw exception;
         }
