@@ -41,12 +41,14 @@ public final class PipeBenchmark {
             "pipe.instanced", "Instanced pipe renderer", ImmutableList.of(DRAW_CALLS, VERTEX_INVOCATIONS));
     public static final BenchmarkStatistics GPU_DRIVEN = new BenchmarkStatistics(
             "pipe.gpudriven", "GPU-driven pipe renderer", ImmutableList.of(DRAW_CALLS, VERTEX_INVOCATIONS));
+    public static final BenchmarkStatistics TRADITIONAL = new BenchmarkStatistics(
+            "pipe.traditional", "Traditional pipe renderer", ImmutableList.of(DRAW_CALLS, VERTEX_INVOCATIONS));
 
     public static final BenchmarkProject PROJECT = new BenchmarkProject(
             "pipe-rendering",
             "Pipe rendering",
             ImmutableList.of(RENDER_CPU, RENDER_GPU, UPDATE),
-            ImmutableList.of(INSTANCED, GPU_DRIVEN),
+            ImmutableList.of(INSTANCED, GPU_DRIVEN, TRADITIONAL),
             PipeRenderEvents::benchmarkStatistics);
 
     private PipeBenchmark() {

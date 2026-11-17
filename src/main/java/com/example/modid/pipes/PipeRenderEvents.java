@@ -6,6 +6,7 @@ import com.cleanroommc.kirino.gl.shader.ShaderProgram;
 import com.cleanroommc.kirino.gl.vao.VAO;
 import com.example.modid.pipes.gpudriven.GpuDrivenPipeRenderer;
 import com.example.modid.pipes.instanced.InstancedPipeRenderer;
+import com.example.modid.pipes.traditional.TraditionalPipeRenderer;
 import com.example.modid.render.BlockMaterial;
 import com.example.modid.benchmark.Benchmark;
 import com.example.modid.benchmark.BenchmarkStatistics;
@@ -171,7 +172,7 @@ public final class PipeRenderEvents {
         }
 
         if (renderer == null) {
-            renderer = new GpuDrivenPipeRenderer(scene);
+            renderer = new TraditionalPipeRenderer(scene);
         }
 
         GlStateManager.enableDepth();
