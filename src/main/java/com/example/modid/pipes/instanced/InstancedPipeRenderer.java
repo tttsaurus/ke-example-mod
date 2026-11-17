@@ -1,5 +1,8 @@
 package com.example.modid.pipes.instanced;
 
+import com.example.modid.benchmark.Benchmark;
+import com.example.modid.benchmark.BenchmarkStatistics;
+import com.example.modid.pipes.PipeBenchmark;
 import com.example.modid.pipes.PipeFrame;
 import com.example.modid.pipes.PipeRenderer;
 import com.example.modid.pipes.PipeScene;
@@ -21,6 +24,11 @@ public final class InstancedPipeRenderer implements PipeRenderer {
     }
 
     @Override
+    public BenchmarkStatistics benchmarkStatistics() {
+        return PipeBenchmark.INSTANCED;
+    }
+
+    @Override
     public void update(PipeScene scene) {
         Preconditions.checkState(!closed, "Renderer is closed.");
         Preconditions.checkNotNull(scene);
@@ -38,7 +46,8 @@ public final class InstancedPipeRenderer implements PipeRenderer {
         GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
 
         shader.bind(frame);
-        mesh.draw();
+        int drawCalls = mesh.draw();
+        Benchmark.recordStatistic(PipeBenchmark.PROJECT, PipeBenchmark.INSTANCED, PipeBenchmark.DRAW_CALLS, drawCalls);
     }
 
     @Override

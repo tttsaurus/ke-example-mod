@@ -8,6 +8,7 @@ import com.example.modid.pipes.gpudriven.GpuDrivenPipeRenderer;
 import com.example.modid.pipes.instanced.InstancedPipeRenderer;
 import com.example.modid.render.BlockMaterial;
 import com.example.modid.benchmark.Benchmark;
+import com.example.modid.benchmark.BenchmarkStatistics;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiDownloadTerrain;
@@ -55,6 +56,10 @@ public final class PipeRenderEvents {
     }
 
     private PipeRenderEvents() {
+    }
+
+    public static @Nullable BenchmarkStatistics benchmarkStatistics() {
+        return renderer == null ? null : renderer.benchmarkStatistics();
     }
 
     @SubscribeEvent
@@ -166,7 +171,7 @@ public final class PipeRenderEvents {
         }
 
         if (renderer == null) {
-            renderer = new InstancedPipeRenderer(scene);
+            renderer = new GpuDrivenPipeRenderer(scene);
         }
 
         GlStateManager.enableDepth();
@@ -179,7 +184,8 @@ public final class PipeRenderEvents {
         GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
         minecraft.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
-        try (Benchmark.Sample gpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_GPU);
+        try (Benchmark.Sample statistics = Benchmark.measureStatistics(PipeBenchmark.PROJECT, renderer.benchmarkStatistics());
+             Benchmark.Sample gpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_GPU);
              Benchmark.Sample cpu = Benchmark.measure(PipeBenchmark.PROJECT, PipeBenchmark.RENDER_CPU)) {
             renderer.render(frame);
         }

@@ -88,6 +88,28 @@ public final class Benchmark {
         }
     }
 
+    public static Sample measureStatistics(BenchmarkProject project, BenchmarkStatistics group) {
+        Preconditions.checkNotNull(project);
+        Preconditions.checkNotNull(group);
+
+        BenchmarkSession current = session;
+        return current != null && current.project == project && current.frameOpen()
+                ? current.measureStatistics(group)
+                : NO_SAMPLE;
+    }
+
+    public static void recordStatistic(BenchmarkProject project, BenchmarkStatistics group, BenchmarkStatistic statistic, long value) {
+        Preconditions.checkNotNull(project);
+        Preconditions.checkNotNull(group);
+        Preconditions.checkNotNull(statistic);
+        Preconditions.checkArgument(value >= 0);
+
+        BenchmarkSession current = session;
+        if (current != null && current.project == project && current.frameOpen()) {
+            current.recordStatistic(group, statistic, value);
+        }
+    }
+
     static boolean busy() {
         return session != null || requested != null || saveResult != null;
     }
@@ -115,7 +137,13 @@ public final class Benchmark {
             BenchmarkProject project = requested;
             requested = null;
             try {
-                session = new BenchmarkSession(project);
+                BenchmarkStatistics identity = project.activeStatistics().get();
+                if (!project.statistics().isEmpty() && identity == null) {
+                    showStatus("Benchmark is not ready; wait for the renderer.");
+                    return;
+                }
+                session = new BenchmarkSession(project, identity);
+                ExampleMod.LOGGER.info("Benchmark started: {} ({}s)", session.displayName, DURATION_SECONDS);
                 status = "";
             } catch (Throwable exception) {
                 ExampleMod.LOGGER.error("Cannot start benchmark {}.", project.id(), exception);
@@ -130,7 +158,7 @@ public final class Benchmark {
     static List<String> hudLines() {
         HUD_LINES.clear();
         if (session != null) {
-            HUD_LINES.add("Benchmark: " + session.project.name());
+            HUD_LINES.add("Benchmark: " + session.displayName);
             HUD_LINES.add(session.secondsRemaining() + "s remaining");
         } else if (saveResult != null) {
             HUD_LINES.add("Saving benchmark...");

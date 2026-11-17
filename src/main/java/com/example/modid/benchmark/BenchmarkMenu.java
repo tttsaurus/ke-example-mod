@@ -25,7 +25,9 @@ final class BenchmarkMenu extends GuiScreen {
         lines.add("Benchmark - " + Benchmark.DURATION_SECONDS + " seconds");
         lines.add("Up / Down: select   Enter: start   Esc: cancel");
         for (int i = 0; i < projects.size(); i++) {
-            lines.add((i == selected ? "> " : "  ") + projects.get(i).name());
+            BenchmarkProject project = projects.get(i);
+            BenchmarkStatistics identity = project.activeStatistics().get();
+            lines.add((i == selected ? "> " : "  ") + project.name() + (identity == null ? "" : " / " + identity.name()));
         }
         if (projects.isEmpty()) {
             lines.add("No benchmark projects registered");

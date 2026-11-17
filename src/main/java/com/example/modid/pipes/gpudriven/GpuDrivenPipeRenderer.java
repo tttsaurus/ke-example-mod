@@ -9,6 +9,9 @@ import com.cleanroommc.kirino.gl.texture.GLTexture;
 import com.cleanroommc.kirino.gl.texture.accessor.TextureBufferAccessor;
 import com.cleanroommc.kirino.gl.vao.VAO;
 import com.cleanroommc.kirino.gl.vao.attribute.AttributeLayout;
+import com.example.modid.benchmark.Benchmark;
+import com.example.modid.benchmark.BenchmarkStatistics;
+import com.example.modid.pipes.PipeBenchmark;
 import com.example.modid.pipes.PipeFrame;
 import com.example.modid.pipes.PipeRenderer;
 import com.example.modid.pipes.PipeScene;
@@ -81,6 +84,11 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
     }
 
     @Override
+    public BenchmarkStatistics benchmarkStatistics() {
+        return PipeBenchmark.GPU_DRIVEN;
+    }
+
+    @Override
     public void update(PipeScene scene) {
         Preconditions.checkState(!closed, "Renderer is closed.");
         Preconditions.checkNotNull(scene);
@@ -136,6 +144,7 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         Preconditions.checkNotNull(frame);
 
         if (batchCount == 0) {
+            Benchmark.recordStatistic(PipeBenchmark.PROJECT, PipeBenchmark.GPU_DRIVEN, PipeBenchmark.DRAW_CALLS, 0);
             return;
         }
 
@@ -150,6 +159,8 @@ public final class GpuDrivenPipeRenderer implements PipeRenderer {
         GL31.glDrawElementsInstanced(GL11.GL_TRIANGLE_STRIP, INDICES_PER_BATCH, GL11.GL_UNSIGNED_SHORT, 0L, batchCount);
         GL11.glDisable(GL43.GL_PRIMITIVE_RESTART_FIXED_INDEX);
         GL45.glBindTextureUnit(BLOCK_TEXTURE_UNIT, 0);
+
+        Benchmark.recordStatistic(PipeBenchmark.PROJECT, PipeBenchmark.GPU_DRIVEN, PipeBenchmark.DRAW_CALLS, 1);
     }
 
     @Override

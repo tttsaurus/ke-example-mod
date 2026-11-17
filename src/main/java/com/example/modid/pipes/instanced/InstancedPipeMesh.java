@@ -149,10 +149,11 @@ final class InstancedPipeMesh implements AutoCloseable {
         }
     }
 
-    void draw() {
+    int draw() {
         Preconditions.checkState(!closed, "Mesh is closed.");
 
         vao.bind();
+        int drawCalls = 0;
         for (Batch batch : batches) {
             if (batch.instanceCount() == 0) {
                 continue;
@@ -165,7 +166,11 @@ final class InstancedPipeMesh implements AutoCloseable {
                     batch.indexOffset(),
                     batch.instanceCount(),
                     batch.firstInstance());
+
+            drawCalls++;
         }
+
+        return drawCalls;
     }
 
     @Override

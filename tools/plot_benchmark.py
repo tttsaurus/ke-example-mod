@@ -16,7 +16,7 @@ class Capture:
 
 
 def normalize_session(session: dict) -> dict:
-    if session.get("protocol") != "kirino-frame-benchmark" or session.get("version") not in (1, 2):
+    if session.get("protocol") != "kirino-frame-benchmark" or session.get("version") not in (1, 2, 3):
         raise ValueError("unsupported benchmark protocol or version")
     if session["version"] == 1:
         session["statistics"] = {"average": "arithmetic", "standardDeviation": "population", "weighting": "per_frame_sample"}
@@ -28,6 +28,11 @@ def normalize_session(session: dict) -> dict:
                 metric["rollingAggregation"] = "frame_rate"
             else:
                 metric["rollingAggregation"] = "mean"
+
+    identity = session.get("identity")
+    if identity is not None and (not isinstance(identity, dict)
+                                 or any(not isinstance(identity.get(key), str) or not identity[key].strip() for key in ("id", "name"))):
+        raise ValueError("invalid benchmark identity")
 
     statistics = session["statistics"]
     if (statistics["average"], statistics["standardDeviation"], statistics["weighting"]) != ("arithmetic", "population", "per_frame_sample"):
@@ -57,6 +62,47 @@ def normalize_session(session: dict) -> dict:
     if not metric_ids:
         raise ValueError("session contains no metrics")
     return session
+
+
+def validate_statistics_groups(groups: list[dict], completed_frames: int) -> None:
+    group_ids = set()
+    for group in groups:
+        if not isinstance(group["id"], str) or not group["id"] or group["id"] in group_ids:
+            raise ValueError("invalid or duplicate statistics group ID")
+        group_ids.add(group["id"])
+        if not isinstance(group["name"], str) or not group["name"].strip():
+            raise ValueError("statistics group names must not be empty")
+        if group["frameSampling"] != "observed_completed_frames":
+            raise ValueError("unsupported statistics frame sampling")
+        if not isinstance(group["frames"], int) or not 0 < group["frames"] <= completed_frames:
+            raise ValueError("invalid statistics group frame count")
+        statistic_ids = set()
+        for statistic in group["statistics"]:
+            if not isinstance(statistic["id"], str) or not statistic["id"] or statistic["id"] in statistic_ids:
+                raise ValueError("invalid or duplicate statistic ID")
+            statistic_ids.add(statistic["id"])
+            if any(not isinstance(statistic[key], str) or not statistic[key].strip() for key in ("name", "unit")):
+                raise ValueError("statistic names and units must not be empty")
+            if statistic["source"] not in ("counter", "vertex_shader_invocations") or statistic["aggregation"] != "mean_per_frame":
+                raise ValueError("unsupported statistic source or aggregation")
+            if not isinstance(statistic["total"], int) or statistic["total"] < 0:
+                raise ValueError("statistic totals must be nonnegative integers")
+            samples, missing = statistic["frames"], statistic["missingFrames"]
+            if not isinstance(samples, int) or not isinstance(missing, int) or samples < 0 or missing < 0 or samples + missing != group["frames"]:
+                raise ValueError("invalid statistic frame counts")
+            average = statistic["average"]
+            if samples == 0:
+                if average is not None or statistic["total"] != 0:
+                    raise ValueError("statistics without samples must have a null average and zero total")
+            elif not isinstance(average, (int, float)) or not math.isfinite(average) or not math.isclose(average, statistic["total"] / samples, rel_tol=1e-12, abs_tol=1e-12):
+                raise ValueError("statistic average does not match its total and frame count")
+            if "standardDeviation" in statistic:
+                deviation = statistic["standardDeviation"]
+                if samples == 0:
+                    if deviation is not None:
+                        raise ValueError("statistics without samples must have a null standard deviation")
+                elif not isinstance(deviation, (int, float)) or not math.isfinite(deviation) or deviation < 0:
+                    raise ValueError("statistic standard deviations must be finite and nonnegative")
 
 
 def read_capture(path: Path) -> Capture:
@@ -97,6 +143,10 @@ def read_capture(path: Path) -> Capture:
                 elif record_type == "end":
                     if record["frames"] != len(frames):
                         raise ValueError("the end record has the wrong frame count")
+                    groups = record["statisticsGroups"] if session["version"] >= 3 else record.get("statisticsGroups", [])
+                    if not isinstance(groups, list):
+                        raise ValueError("statisticsGroups must be an array")
+                    validate_statistics_groups(groups, len(frames))
                     end = record
                 else:
                     raise ValueError(f"unexpected record type: {record_type}")
@@ -146,11 +196,57 @@ def plot(captures: list[Capture], output: Path, window_seconds: float | None, sh
             metrics[metric["id"]] = metric
 
     plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False})
-    figure, axes = plt.subplots(len(metrics), 1, sharex=True, squeeze=False, figsize=(13, 2.7 * len(metrics)), layout="constrained")
+    groups = [(index, group) for index, capture in enumerate(captures) for group in capture.end.get("statisticsGroups", [])]
+    dashboard_heights = [0.45 + 0.4 * (len(group["statistics"]) + 1) for _, group in groups]
+    labels = []
+    for capture in captures:
+        identity = capture.session.get("identity")
+        recorded_groups = capture.end.get("statisticsGroups", [])
+        if identity:
+            labels.append(identity["name"])
+        elif len(recorded_groups) == 1:
+            labels.append(recorded_groups[0]["name"])
+        else:
+            labels.append(capture.path.stem)
+    labels = [f"{label} (run {index + 1})" if labels.count(label) > 1 else label for index, label in enumerate(labels)]
+    figure = plt.figure(layout="constrained")
+    figure.set_size_inches(13.0, 2.7 * len(metrics) + sum(dashboard_heights))
+    heights = dashboard_heights + [2.7] * len(metrics)
+    grid = figure.add_gridspec(len(heights), 1, height_ratios=heights)
+    group_names = [group["name"] for _, group in groups]
+    for index, (capture_index, group) in enumerate(groups):
+        dashboard = figure.add_subplot(grid[index])
+        dashboard.set_axis_off()
+        group_title = group["name"]
+        if group_names.count(group_title) > 1:
+            group_title += f" (run {capture_index + 1})"
+        dashboard.set_title(group_title, loc="left", fontsize=11, fontweight="bold")
+        rows = []
+        row_colors = []
+        for statistic in group["statistics"]:
+            average = statistic["average"]
+            deviation = statistic.get("standardDeviation")
+            rows.append([statistic["name"], f"{average:,.2f}" if average is not None else "N/A",
+                         f"{deviation:,.2f}" if deviation is not None else "N/A", statistic["unit"],
+                         f"{statistic['frames']:,} / {group['frames']:,}"])
+            row_colors.append(["#f1f5f9" if len(row_colors) % 2 == 0 else "#ffffff"] * 5)
+        table = dashboard.table(cellText=rows, colLabels=["Statistic", "Average", "SD", "Unit", "Valid frames"],
+                                cellColours=row_colors, colWidths=[0.35, 0.16, 0.16, 0.18, 0.15],
+                                cellLoc="left", colLoc="left", bbox=[0, 0, 1, 0.85])
+        table.auto_set_font_size(False)
+        table.set_fontsize(8)
+        for (row, _), cell in table.get_celld().items():
+            cell.set_edgecolor("#dbe2ea")
+            if row == 0:
+                cell.set_facecolor("#dce7f2")
+                cell.set_text_props(weight="bold")
+    axes = []
+    for row in range(len(metrics)):
+        axes.append(figure.add_subplot(grid[row + len(groups)], sharex=axes[0] if axes else None))
     title = captures[0].session["name"] if len(captures) == 1 else "Benchmark comparison"
     figure.suptitle(f"{title} (per-frame capture)", fontsize=16)
 
-    for axis, metric in zip(axes[:, 0], metrics.values()):
+    for axis, metric in zip(axes, metrics.values()):
         metric_id = metric["id"]
         for capture_index, capture in enumerate(captures):
             samples = [(frame["elapsedNs"] / 1_000_000_000, frame["values"][metric_id])
@@ -166,7 +262,7 @@ def plot(captures: list[Capture], output: Path, window_seconds: float | None, sh
             if missing:
                 sample_summary += f", {missing} missing samples"
             color = f"C{capture_index % 10}"
-            label = capture.path.stem if len(captures) > 1 else metric["name"]
+            label = labels[capture_index] if len(captures) > 1 else metric["name"]
             if metric["sampling"] == "event":
                 axis.vlines(times, 0, values, color=color, alpha=0.25, linewidth=1)
                 axis.scatter(times, values, color=color, s=24, label=f"{label} ({sample_summary})\n{summary}", zorder=3)
@@ -180,6 +276,7 @@ def plot(captures: list[Capture], output: Path, window_seconds: float | None, sh
         axis.set_title(metric["name"], loc="left", fontsize=11)
         axis.set_ylabel(metric["unit"])
         axis.set_ylim(bottom=0)
+        axis.tick_params(labelbottom=axis == axes[-1])
         axis.grid(alpha=0.18)
         if axis.has_data():
             axis.legend(loc="upper right", fontsize=8)
@@ -189,7 +286,7 @@ def plot(captures: list[Capture], output: Path, window_seconds: float | None, sh
                 message += "\nrolling: avg=N/A, sd=N/A"
             axis.text(0.5, 0.5, message, ha="center", va="center", transform=axis.transAxes)
 
-    axes[-1, 0].set_xlabel("Elapsed time (s)")
+    axes[-1].set_xlabel("Elapsed time (s)")
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output, dpi=dpi)
     if show:
@@ -198,7 +295,7 @@ def plot(captures: list[Capture], output: Path, window_seconds: float | None, sh
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Plot version 1 and 2 per-frame benchmark JSONL captures with raw and rolling statistics.")
+    parser = argparse.ArgumentParser(description="Plot version 1, 2 and 3 per-frame benchmark JSONL captures with statistics dashboards.")
     parser.add_argument("captures", type=Path, nargs="+")
     parser.add_argument("-o", "--output", type=Path, help="PNG, SVG or PDF output; defaults to the first capture's name with .png")
     parser.add_argument("--window", type=float, help="override the capture's rolling window in seconds (version 1 defaults to 0.5)")

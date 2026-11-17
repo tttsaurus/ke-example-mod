@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.gson.Strictness;
 import com.google.gson.stream.JsonWriter;
 import org.apache.commons.lang3.time.StopWatch;
+import org.jspecify.annotations.Nullable;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,23 +62,31 @@ final class BenchmarkSession implements AutoCloseable {
     }
 
     final BenchmarkProject project;
+    final @Nullable BenchmarkStatistics identity;
+    final String displayName;
     private final Instant startedAt = Instant.now();
     private final RemoteryProfiler profiler = new RemoteryProfiler();
     private final RemoteryProfiler.SampleName frameSample;
     private final List<BenchmarkMetric> metrics;
     private final Map<BenchmarkMetric, DurationSample> samples = new HashMap<>();
     private final Map<BenchmarkMetric, RemoteryProfiler.GpuTimer> gpuTimers = new HashMap<>();
+    private final Map<BenchmarkStatistics, BenchmarkStatisticsCollector> statistics = new LinkedHashMap<>();
     private final List<Frame> frames = new ArrayList<>(8192);
     private final StopWatch elapsed = new StopWatch();
     private final StopWatch frameTimer = new StopWatch();
     private double[] values;
     private int[] counts;
     private int[] gpuRequests;
+    private @Nullable PipelineStatisticsProfiler pipelineProfiler;
     private boolean frameOpen;
     private boolean closed;
 
-    BenchmarkSession(BenchmarkProject project) {
+    BenchmarkSession(BenchmarkProject project, @Nullable BenchmarkStatistics identity) {
         this.project = Preconditions.checkNotNull(project);
+        Preconditions.checkArgument(identity == null || project.statistics().contains(identity), "Unknown benchmark identity.");
+
+        this.identity = identity;
+        displayName = project.name() + (identity == null ? "" : " / " + identity.name());
 
         metrics = new ArrayList<>(project.metrics().size() + 1);
         metrics.add(new BenchmarkMetric("fps", "FPS", "fps", BenchmarkMetric.Kind.GAUGE,
@@ -85,6 +95,9 @@ final class BenchmarkSession implements AutoCloseable {
         values = new double[metrics.size()];
         counts = new int[metrics.size()];
         gpuRequests = new int[metrics.size()];
+        for (BenchmarkStatistics group : project.statistics()) {
+            statistics.put(group, new BenchmarkStatisticsCollector(group));
+        }
         try {
             frameSample = profiler.register("Frame");
             for (int i = 1; i < metrics.size(); i++) {
@@ -118,6 +131,9 @@ final class BenchmarkSession implements AutoCloseable {
         }
 
         profiler.collectGpuResults();
+        if (pipelineProfiler != null) {
+            pipelineProfiler.collectResults();
+        }
         if (elapsed.getTime(TimeUnit.SECONDS) >= Benchmark.DURATION_SECONDS) {
             return false;
         }
@@ -158,6 +174,23 @@ final class BenchmarkSession implements AutoCloseable {
         return frameOpen;
     }
 
+    Benchmark.Sample measureStatistics(BenchmarkStatistics group) {
+        Preconditions.checkState(frameOpen, "No frame is open.");
+        BenchmarkStatisticsCollector collector = Preconditions.checkNotNull(statistics.get(group), "Unknown statistics group: %s", group.id());
+
+        if (collector.requiresPipelineQuery() && pipelineProfiler == null) {
+            pipelineProfiler = new PipelineStatisticsProfiler();
+        }
+        return collector.begin(frames.size(), pipelineProfiler);
+    }
+
+    void recordStatistic(BenchmarkStatistics group, BenchmarkStatistic statistic, long value) {
+        Preconditions.checkState(frameOpen, "No frame is open.");
+        BenchmarkStatisticsCollector collector = Preconditions.checkNotNull(statistics.get(group), "Unknown statistics group: %s", group.id());
+
+        collector.record(frames.size(), statistic, value);
+    }
+
     int secondsRemaining() {
         return Math.max(0, Benchmark.DURATION_SECONDS - (int) elapsed.getTime(TimeUnit.SECONDS));
     }
@@ -176,9 +209,15 @@ final class BenchmarkSession implements AutoCloseable {
             writer.beginObject();
             writer.name("type").value("session");
             writer.name("protocol").value("kirino-frame-benchmark");
-            writer.name("version").value(2);
+            writer.name("version").value(3);
             writer.name("project").value(project.id());
             writer.name("name").value(project.name());
+            if (identity != null) {
+                writer.name("identity").beginObject();
+                writer.name("id").value(identity.id());
+                writer.name("name").value(identity.name());
+                writer.endObject();
+            }
             writer.name("startedAt").value(startedAt.toString());
             writer.name("durationSeconds").value(Benchmark.DURATION_SECONDS);
             writer.name("frameInterval").value("render_tick_start_to_start");
@@ -251,6 +290,11 @@ final class BenchmarkSession implements AutoCloseable {
             writer.name("reason").value(reason);
             writer.name("frames").value(frames.size());
             writer.name("elapsedNs").value(elapsed.getNanoTime());
+            writer.name("statisticsGroups").beginArray();
+            for (BenchmarkStatisticsCollector collector : statistics.values()) {
+                collector.write(writer, frames.size());
+            }
+            writer.endArray();
             writer.endObject();
             output.newLine();
         }
@@ -271,6 +315,9 @@ final class BenchmarkSession implements AutoCloseable {
             frameOpen = false;
         }
         profiler.close();
+        if (pipelineProfiler != null) {
+            pipelineProfiler.close();
+        }
         frameTimer.reset();
     }
 }
